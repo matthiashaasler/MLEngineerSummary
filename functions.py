@@ -1,8 +1,9 @@
+import pickle
 from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-
+from sklearn.model_selection import train_test_split
 
 # Define the path to the images folder
 IMAGES_PATH = Path() / "images"
@@ -51,3 +52,54 @@ def print_df_info(df_output, string):
 
 def get_proportions(data, column=None):
     return data[column].value_counts() / len(data)
+
+
+def split_data(df):
+    """
+    Split the data into train and test set.
+
+    :param df: pandas dataframe
+    :return: train and test set
+    """
+    train_set, test_set = train_test_split(
+        df,
+        test_size=0.2,
+        random_state=42)
+
+    return train_set, test_set
+
+
+def save_data(train_data, train_labels, test_data, test_labels, file_name='beer'):
+    """
+    Save the train and test data.
+
+    :param train_data: train data
+    :param train_labels: train labels
+    :param test_data: test data
+    :param test_labels: test labels
+    """
+    with open(f'data/{file_name}_train_data.pkl', 'wb') as f:
+        pickle.dump(train_data, f, pickle.HIGHEST_PROTOCOL)
+
+    with open(f'data/{file_name}_train_labels.pkl', 'wb') as f:
+        pickle.dump(train_labels, f, pickle.HIGHEST_PROTOCOL)
+
+    with open(f'data/{file_name}_test_data.pkl', 'wb') as f:
+        pickle.dump(test_data, f, pickle.HIGHEST_PROTOCOL)
+
+    with open(f'data/{file_name}_test_labels.pkl', 'wb') as f:
+        pickle.dump(test_labels, f, pickle.HIGHEST_PROTOCOL)
+
+
+def split_features_and_labels(df, label=''):
+    """
+    Split the features and labels from the dataframe.
+
+    :param label: name of the label column
+    :param df: pandas dataframe
+    :return: features and labels
+    """
+    features = df.drop(label, axis=1)
+    labels = df[label].copy()
+
+    return features, labels
