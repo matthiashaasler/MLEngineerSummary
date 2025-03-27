@@ -48,3 +48,6 @@ def print_df_info(df_output, string):
     print(f'{string}')
     print(df_output)
     print(f'-'*100)
+
+def get_proportions(data, column=None):
+    return data[column].value_counts() / len(data)
