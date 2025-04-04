@@ -3,10 +3,6 @@ import os
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
-from pandas.plotting import scatter_matrix
-
-from functions import load_data, save_fig
-
 
 
 class HandleData:
@@ -198,7 +194,7 @@ class BeerEDA(EDA):
         columns_to_drop = ["Name", "Beer Name (Full)", "Description"]
         self.drop_columns(columns_to_drop)
         self.data_df = self.data_df.reset_index(drop=True)
-
+        self.save_data(file_name="beer_trunc")
 
 
 if __name__ == '__main__':
