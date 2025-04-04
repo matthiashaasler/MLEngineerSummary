@@ -11,11 +11,16 @@ class HandleData:
         self.project_name = project_name
         self. data_save_dir = data_dir
         self.data_df = self.__read_data_to_df(data_file=data_file)
+        self.__create_data_dir()
 
 
     @property
     def df_columns(self):
         return self.data_df.columns.tolist()
+
+    def __create_data_dir(self):
+        if not os.path.exists(self.data_save_dir):
+            os.makedirs(self.data_save_dir)
 
     def __read_data_to_df(self, data_file=''):
         try:
@@ -57,6 +62,11 @@ class PlotData:
         self.project_name = project_name
         self.figure_save_dir = figure_save_dir
         self.data_df = data_df
+        self.__create_figure_dir()
+
+    def __create_figure_dir(self):
+        if not os.path.exists(self.figure_save_dir):
+            os.makedirs(self.figure_save_dir)
 
     def plot_histogram(self, column_name, number_of_bins=50):
         try:
