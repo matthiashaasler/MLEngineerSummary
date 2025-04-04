@@ -102,11 +102,14 @@ class PlotData:
         self.save_figure(file_name="CorrelationMatrix", fig=fig)
         fig.show()
 
-    def plot_scatter_matrix(self, columns=None):
-        pd.plotting.scatter_matrix(self.data_df[columns], figsize=(15, 10), diagonal='kde')
-        plt.suptitle('Scatter Matrix', fontsize=16)
-        self.save_figure(file_name=f"ScatterMatrix")
-        plt.show()
+    def plot_scatter_matrix(self, columns=None, color_by_column=None):
+        fig = px.scatter_matrix(self.data_df,
+                                dimensions=columns,
+                                color=color_by_column, symbol=color_by_column,
+                                title="Scatter matrix",
+        labels={col:col.replace('_', ' ') for col in self.data_df.columns}) # remove underscore
+        self.save_figure(file_name=f"ScatterMatrix", fig=fig)
+        fig.show()
 
     def plot_scatter(self, x_column, y_column):
         try:
@@ -186,7 +189,7 @@ class BeerEDA(EDA):
 
 
         # Display the scatter matrix for thr review columns
-        attributes = [att for att in self.df_columns if "review" in att]
+        attributes = [att for att in self.df_columns if "review_" in att]
         self.print_df_info(attributes, "The review columns are:")
         self.plot_scatter_matrix(columns=attributes)
 
@@ -202,7 +205,7 @@ class BeerEDA(EDA):
 
         self.data_df = self.data_df.dropna()
         self.data_df = self.data_df.drop_duplicates()
-        columns_to_drop = ["Name", "Beer Name (Full)", "Description"]
+        columns_to_drop = ["Name", "Beer Name (Full)", "Description", 'number_of_reviews']
         self.drop_columns(columns_to_drop)
         self.data_df = self.data_df.reset_index(drop=True)
         self.save_data(file_name="_truncated_data")
