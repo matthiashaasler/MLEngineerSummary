@@ -71,17 +71,13 @@ class PlotData:
 
     def plot_histogram(self, column_name, number_of_bins=50):
         try:
-            histogram_df = self.data_df[column_name].dropna().value_counts()
-        except KeyError:
-            raise KeyError(f"Column {column_name} not found in data frame.")
-        plt.figure(figsize=(10, 6))
-        try:
-            plt.hist(histogram_df, bins=number_of_bins, edgecolor='black')
-            plt.xlabel(column_name)
-            plt.ylabel("Frequency")
-            plt.title(f"Histogram of {column_name}")
-            self.save_figure(file_name=f"Histogram_{column_name}")
-            plt.show()
+            fig = px.histogram(self.data_df,
+                               x=column_name,
+                               nbins=number_of_bins,
+                               title=f"Histogram of {column_name}",
+                               labels={column_name: column_name.replace('_', ' ')})  # remove underscore
+            self.save_figure(file_name=f"Histogram_{column_name}", fig=fig)
+            fig.show()
         except KeyError:
             print(f"Column {column_name} does not exist in the dataframe.")
 
@@ -138,11 +134,11 @@ class PlotData:
             raise IOError(f"File {data_file} already exists!")
 
     def plot_boxplot(self, columns=None):
-        plt.figure(figsize=(10, 6))
-        self.data_df[columns].boxplot()
-        plt.title('Boxplot')
-        self.save_figure(file_name="Boxplot")
-        plt.show()
+        fig = px.box(self.data_df,
+                     x=columns,
+                     title="Box plot",)
+        self.save_figure(file_name="Boxplot", fig=fig)
+        fig.show()
 
 class EDA(HandleData, PlotData):
     def __init__(self, data_dir='data', project_name=None, data_source=None, figure_dir='images'):
@@ -189,7 +185,7 @@ class BeerEDA(EDA):
 
 
         # Display the scatter matrix for thr review columns
-        attributes = [att for att in self.df_columns if "review_" in att]
+        attributes = [att for att in self.df_columns if "review_" in att and att is not "review_overall"]
         self.print_df_info(attributes, "The review columns are:")
         self.plot_scatter_matrix(columns=attributes)
 
@@ -198,13 +194,14 @@ class BeerEDA(EDA):
         # Display the scatter matrix for the numerical columns
         self.plot_corr_matrix(columns= self.get_numerical_columns())
 
-        self.plot_boxplot(columns=self.df_columns)
+        self.plot_boxplot(columns=self.get_numerical_columns())
 
         attributes =self.get_categorical_columns()
         self.print_df_info(attributes, "The non-numerical columns are:")
 
         self.data_df = self.data_df.dropna()
         self.data_df = self.data_df.drop_duplicates()
+        columns_to_drop = ["Name", "Beer Name (Full)", "Description", 'number_of_reviews']
         columns_to_drop = ["Name", "Beer Name (Full)", "Description", 'number_of_reviews']
         self.drop_columns(columns_to_drop)
         self.data_df = self.data_df.reset_index(drop=True)
