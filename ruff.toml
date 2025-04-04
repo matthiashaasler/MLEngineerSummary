@@ -1,0 +1,32 @@
+# this extends the default exclude list by the lines which are commented
+extend-exclude = [
+    "bazel-*/", # support bazel
+    "external", # support bazel
+]
+
+
+line-length = 120
+target-version = "py311"
+
+[format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+
+[lint]
+select = [
+    "A",    # prevent using keywords that clobber python builtins
+    "B",    # bugbear: extended opinionated warning set
+    "C901", # mccabe;
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "ISC",  # implicit string concatenation;
+    "UP",   # alert you when better syntax is available in your python version
+    "RUF",  # the ruff developer's own rules;
+    "W",    #
+]
+unfixable = ["F401"]  # Don't remove unused imports
+
+[lint.mccabe]
+max-complexity = 20 # take over the value from C++ coding guidelines
