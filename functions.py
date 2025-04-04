@@ -54,21 +54,6 @@ def get_proportions(data, column=None):
     return data[column].value_counts() / len(data)
 
 
-def split_data(df):
-    """
-    Split the data into train and test set.
-
-    :param df: pandas dataframe
-    :return: train and test set
-    """
-    train_set, test_set = train_test_split(
-        df,
-        test_size=0.2,
-        random_state=42)
-
-    return train_set, test_set
-
-
 def save_data(train_data, train_labels, test_data, test_labels, file_name='beer'):
     """
     Save the train and test data.

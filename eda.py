@@ -63,6 +63,11 @@ if __name__ == '__main__':
     df_beer_trunc = df_beer.drop(columns=attributes)
     df_beer_trunc['review_overall'] = df_beer['review_overall']
 
+    # Drop unnecessary columns
+    attributes = [att for att in df_beer.select_dtypes(exclude=np.number).columns.tolist()]
+    print_df_info(attributes, 'The non-numerical columns are:')
+    df_beer_trunc.drop(columns=['Name', 'Beer Name (Full)', 'Description'], inplace=True)
+
     # Display the scatter matrix
     # Feature columns
     attributes = df_beer_trunc.select_dtypes(include=np.number).columns.tolist()
