@@ -49,7 +49,7 @@ class HandleData:
             raise IOError(f"File {data_file} already exists!")
 
     def load_data(self, file_name=''):
-        data_file = os.path.join(self.data_save_dir, file_name + ".pkl")
+        data_file = os.path.join(self.data_save_dir, self.project_name + "_" + file_name + ".pkl")
         if os.path.exists(data_file):
             self.data_df = pd.read_pickle(data_file)
         else:
