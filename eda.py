@@ -1,95 +1,213 @@
+import os
+
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from pandas.plotting import scatter_matrix
-from sklearn.model_selection import train_test_split, StratifiedShuffleSplit
 
-from functions import load_data, print_df_info, save_fig
+from functions import load_data, save_fig
+
+
+
+class HandleData:
+
+    def __init__(self, data_dir="", project_name=None, data_file=None):
+        self.project_name = project_name
+        self. data_save_dir = data_dir
+        self.data_df = self.__read_data_to_df(data_file=data_file)
+
+
+    @property
+    def df_columns(self):
+        return self.data_df.columns.tolist()
+
+    def __read_data_to_df(self, data_file=''):
+        try:
+            return pd.read_csv(os.path.join(self.data_save_dir, data_file))
+        except FileNotFoundError:
+            raise FileNotFoundError(f"File {data_file} not found in the directory {self.data_save_dir}")
+
+    def get_numerical_columns(self):
+        return self.data_df.select_dtypes(include=[np.number]).columns.tolist()
+
+    def get_categorical_columns(self):
+        return self.data_df.select_dtypes(exclude=[np.number]).columns.tolist()
+
+
+    def drop_columns(self, columns=None):
+        if columns is not None:
+            self.data_df.drop(columns=columns, inplace=True)
+        else:
+            raise ValueError("No columns to drop provided.")
+
+    def save_data(self, file_name=''):
+        data_file = os.path.join(self.data_save_dir, self.project_name + "_" + file_name + ".pkl")
+        if not os.path.exists(data_file):
+            self.data_df.to_pickle(data_file)
+        else:
+            raise IOError(f"File {data_file} already exists!")
+
+    def load_data(self, file_name=''):
+        data_file = os.path.join(self.data_save_dir, file_name + ".pkl")
+        if os.path.exists(data_file):
+            self.data_df = pd.read_pickle(data_file)
+        else:
+            raise IOError(f"File {data_file} does not exist!")
+
+
+class PlotData:
+
+    def __init__(self, data_df=None, project_name=None, figure_save_dir='images'):
+        self.project_name = project_name
+        self.figure_save_dir = figure_save_dir
+        self.data_df = data_df
+
+    def plot_histogram(self, column_name, number_of_bins=50):
+        try:
+            histogram_df = self.data_df[column_name].dropna().value_counts()
+        except KeyError:
+            raise KeyError(f"Column {column_name} not found in data frame.")
+        plt.figure(figsize=(10, 6))
+        try:
+            plt.hist(histogram_df, bins=number_of_bins, edgecolor='black')
+            plt.xlabel(column_name)
+            plt.ylabel("Frequency")
+            plt.title(f"Histogram of {column_name}")
+            self.save_figure(file_name=f"Histogram_{column_name}")
+            plt.show()
+        except KeyError:
+            print(f"Column {column_name} does not exist in the dataframe.")
+
+    def plot_pandas_histograms(self):
+        self.data_df.hist(bins=50, figsize=(20, 15))
+        self.save_figure(file_name=f"All_Histograms_{self.project_name}")
+        plt.show()
+
+    def get_corr_matrix(self, columns=None):
+        corr_matrix =  self.data_df[columns].corr(numeric_only=True)
+        print(corr_matrix)
+        return corr_matrix
+
+
+    def plot_corr_matrix(self, columns=None):
+        corr_matrix = self.get_corr_matrix(columns=columns)
+        plt.figure(figsize=(10, 8))
+        plt.matshow(corr_matrix, cmap='coolwarm', fignum=1)
+        plt.colorbar()
+        plt.title('Correlation Matrix', pad=20)
+        self.save_figure(file_name="CorrelationMatrix")
+        plt.show()
+
+    def plot_scatter_matrix(self, columns=None):
+        pd.plotting.scatter_matrix(self.data_df[columns], figsize=(15, 10), diagonal='kde')
+        plt.suptitle('Scatter Matrix', fontsize=16)
+        self.save_figure(file_name=f"ScatterMatrix")
+        plt.show()
+
+    def plot_scatter(self, x_column, y_column):
+        try:
+            plt.figure(figsize=(10, 6))
+            plt.scatter(self.data_df[x_column], self.data_df[y_column], alpha=0.5)
+            plt.xlabel(x_column)
+            plt.ylabel(y_column)
+            plt.title(f"Scatter Plot of {x_column} vs {y_column}")
+            self.save_figure(file_name=f"Scatter_{x_column}_vs_{y_column}.png")
+            plt.show()
+        except KeyError:
+            print(f"Columns {x_column} or {y_column} do not exist in the dataframe.")
+
+    def save_figure(self, file_name=None):
+        data_file = os.path.join(self.figure_save_dir, f'{self.project_name}_{file_name}.png')
+        file_number = 0
+        while os.path.exists(data_file):
+            file_number += 1
+            data_file = os.path.join(self.figure_save_dir, f'{self.project_name}_{file_name}_{file_number}.png')
+        if not os.path.exists(data_file):
+            plt.savefig(data_file)
+        else:
+            raise IOError(f"File {data_file} already exists!")
+
+    def plot_boxplot(self, columns=None):
+        plt.figure(figsize=(10, 6))
+        self.data_df[columns].boxplot()
+        plt.title('Boxplot')
+        self.save_figure(file_name="Boxplot")
+        plt.show()
+
+class EDA(HandleData, PlotData):
+    def __init__(self, data_dir='data', project_name=None, data_source=None, figure_dir='images'):
+        HandleData.__init__(self, data_dir=data_dir, project_name=project_name, data_file=data_source)
+        PlotData.__init__(self, data_df=self.data_df, project_name=project_name, figure_save_dir=figure_dir)
+
+    @staticmethod
+    def print_df_info(df_output, heading):
+        """
+        Print the dataframe output.
+
+        :param df_output: dataframe output
+        :param heading: string to be printed
+        """
+        print("")
+        print(f"-" * (len(heading) + 2))
+        print(f" {heading} ")
+        print(df_output)
+        # print(f"-" * (len(heading) + 2))
+
+    def print_all_infos(self):
+        for heading, pandas_func in [
+            ("The first 10 rows of the dataframe are:", self.data_df.head(10)),
+            ("The last 10 rows of the dataframe are:", self.data_df.tail(10)),
+            ("The data types info:", self.data_df.info()),
+            ("The shape of the dataframe is:", self.data_df.shape),
+            ("The columns of the dataframe are:", self.data_df.columns.to_list()),
+            ("The summary statistics of the dataframe are:", self.data_df.describe()),
+            ("The number of unique values in the dataframe are:", self.data_df.nunique()),
+            ("The number of null values in the dataframe are:", self.data_df.isna().sum()),
+            ("The number of duplicated values in the dataframe are:", self.data_df.duplicated().sum())
+        ]:
+            self.print_df_info(pandas_func, heading)
+        return
+
+class BeerEDA(EDA):
+    def __init__(self, project_name=None, data_source=None):
+        EDA.__init__(self, data_dir="data", project_name=project_name, data_source=data_source, figure_dir="images")
+
+        self.print_all_infos()
+
+        self.plot_pandas_histograms()
+        self.plot_corr_matrix(columns=self.df_columns)
+
+
+        # Display the scatter matrix for thr review columns
+        attributes = [att for att in self.df_columns if "review" in att]
+        self.print_df_info(attributes, "The review columns are:")
+        self.plot_scatter_matrix(columns=attributes)
+
+        self.plot_histogram(column_name="review_overall", number_of_bins=50)
+
+        # Display the scatter matrix for the numerical columns
+        self.plot_corr_matrix(columns= self.get_numerical_columns())
+
+        self.plot_boxplot(columns=self.df_columns)
+
+        attributes =self.get_categorical_columns()
+        self.print_df_info(attributes, "The non-numerical columns are:")
+
+        self.data_df = self.data_df.dropna()
+        self.data_df = self.data_df.drop_duplicates()
+        columns_to_drop = ["Name", "Beer Name (Full)", "Description"]
+        self.drop_columns(columns_to_drop)
+        self.data_df = self.data_df.reset_index(drop=True)
+
+
 
 if __name__ == '__main__':
 
-    df_beer = load_data(
-        ordner_name='data',
-        csv_name='beer_profile_and_ratings.csv'
-    )
+    # Create an instance of the BeerEDA class
+    beer_eda = BeerEDA(project_name="Beer",
+                       data_source="beer_profile_and_ratings.csv",
+                       )
 
-    # pd.set_option("display.max_rows", None, "display.max_columns", None)
-
-    # Display the first 10 rows of the dataframe
-    print_df_info(df_beer.head(10), 'The first 10 rows of the dataframe are:')
-
-
-    # Display the last 10 rows of the dataframe
-    print_df_info(df_beer.tail(10), 'The last 10 rows of the dataframe are:')
-
-    # Display the data types of the columns
-    print_df_info(df_beer.info(), 'The data types info:')
-
-    # Display the shape of the dataframe
-    print_df_info(df_beer.shape, 'The shape of the dataframe is:')
-
-    # Display the columns of the dataframe
-    print_df_info(df_beer.columns.to_list(), 'The columns of the dataframe are:')
-
-    # Display the summary statistics of the dataframe
-    print_df_info(df_beer.describe(), 'The summary statistics of the dataframe are:')
-
-    # Display the unique values of the columns
-    print_df_info(df_beer.nunique(), 'The number of unique values in the dataframe are:')
-
-    # Display the number of missing values in the dataframe
-    print_df_info(df_beer.isna().sum(), 'The number of null values in the dataframe are:')
-
-    # Display the number of duplicates in the dataframe
-    print_df_info(df_beer.duplicated().sum(), 'The number of duplicated values in the dataframe are:')
-
-    # Display numerical columns as histograms
-    df_beer.hist(bins=50, figsize=(20, 15))
-    save_fig('df_beer_hist')
-    plt.show()
-
-    # Display the correlation matrix
-    corr_matrix = df_beer.corr(numeric_only=True)
-    print_df_info(corr_matrix, 'The correlation matrix is:')
-
-    # Display the scatter matrix for thr review columns
-    attributes = [att for att in df_beer.select_dtypes(include=np.number).columns.tolist() if 'review' in att]
-    print_df_info(attributes, 'The review columns are:')
-    scatter_matrix(df_beer[attributes], figsize=(20,15))
-    save_fig("scatter_matrix_plot")
-    plt.show()
-
-    # Drop the review columns but overall_review
-    df_beer_trunc = df_beer.drop(columns=attributes)
-    df_beer_trunc['review_overall'] = df_beer['review_overall']
-
-    # Drop unnecessary columns
-    attributes = [att for att in df_beer.select_dtypes(exclude=np.number).columns.tolist()]
-    print_df_info(attributes, 'The non-numerical columns are:')
-    df_beer_trunc.drop(columns=['Name', 'Beer Name (Full)', 'Description'], inplace=True)
-
-    # Display the scatter matrix
-    # Feature columns
-    attributes = df_beer_trunc.select_dtypes(include=np.number).columns.tolist()
-    print_df_info(attributes, 'The numerical columns of the truncated DF are:')
-    scatter_matrix(df_beer_trunc[attributes], figsize=(20,15))
-    save_fig("scatter_matrix_plot")
-    plt.show()
-
-    # Display scatter plot of IBU MIN und IBU MAX
-    df_beer_trunc.plot(kind="scatter", x="Max IBU", y="Min IBU", figsize=(20,15),
-             alpha=0.1, grid=True)
-    save_fig("scatter_plot_max_vs_min_ibu")  # extra code
-    plt.show()
-
-
-    # Display the boxplot of the numerical columns
-    df_beer_trunc.boxplot(figsize=(20, 15))
-    save_fig("df_beer_trunc_boxplot")
-    plt.show()
-
-    # Dump data to pickle
-    df_beer_trunc.to_pickle('data/df_beer_trunc.pkl')
 
 
 

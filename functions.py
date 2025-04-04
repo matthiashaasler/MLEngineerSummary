@@ -39,16 +39,16 @@ def load_data(ordner_name, csv_name):
     return pd.read_csv(csv_file)
 
 
-def print_df_info(df_output, string):
-    """
-    Print the dataframe output.
-
-    :param df_output: dataframe output
-    :param string: string to be printed
-    """
-    print(f'{string}')
-    print(df_output)
-    print(f'-'*100)
+# def print_df_info(df_output, string):
+#     """
+#     Print the dataframe output.
+#
+#     :param df_output: dataframe output
+#     :param string: string to be printed
+#     """
+#     print(f'{string}')
+#     print(df_output)
+#     print(f'-'*100)
 
 def get_proportions(data, column=None):
     return data[column].value_counts() / len(data)
