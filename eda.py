@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
+import plotly.express as px
 
 
 class HandleData:
@@ -97,12 +98,9 @@ class PlotData:
 
     def plot_corr_matrix(self, columns=None):
         corr_matrix = self.get_corr_matrix(columns=columns)
-        plt.figure(figsize=(10, 8))
-        plt.matshow(corr_matrix, cmap='coolwarm', fignum=1)
-        plt.colorbar()
-        plt.title('Correlation Matrix', pad=20)
-        self.save_figure(file_name="CorrelationMatrix")
-        plt.show()
+        fig = px.imshow(corr_matrix, title="Correlation Matrix", text_auto=True)
+        self.save_figure(file_name="CorrelationMatrix", fig=fig)
+        fig.show()
 
     def plot_scatter_matrix(self, columns=None):
         pd.plotting.scatter_matrix(self.data_df[columns], figsize=(15, 10), diagonal='kde')
@@ -122,14 +120,17 @@ class PlotData:
         except KeyError:
             print(f"Columns {x_column} or {y_column} do not exist in the dataframe.")
 
-    def save_figure(self, file_name=None):
+    def save_figure(self, file_name=None, fig=None):
         data_file = os.path.join(self.figure_save_dir, f'{self.project_name}_{file_name}.png')
         file_number = 0
         while os.path.exists(data_file):
             file_number += 1
             data_file = os.path.join(self.figure_save_dir, f'{self.project_name}_{file_name}_{file_number}.png')
         if not os.path.exists(data_file):
-            plt.savefig(data_file)
+            if fig:
+                fig.write_image(data_file)
+            else:
+                plt.savefig(data_file)
         else:
             raise IOError(f"File {data_file} already exists!")
 
@@ -165,7 +166,7 @@ class EDA(HandleData, PlotData):
             ("The last 10 rows of the dataframe are:", self.data_df.tail(10)),
             ("The data types info:", self.data_df.info()),
             ("The shape of the dataframe is:", self.data_df.shape),
-            ("The columns of the dataframe are:", self.data_df.columns.to_list()),
+            ("The columns of the dataframe are:", self.df_columns),
             ("The summary statistics of the dataframe are:", self.data_df.describe()),
             ("The number of unique values in the dataframe are:", self.data_df.nunique()),
             ("The number of null values in the dataframe are:", self.data_df.isna().sum()),
@@ -204,7 +205,7 @@ class BeerEDA(EDA):
         columns_to_drop = ["Name", "Beer Name (Full)", "Description"]
         self.drop_columns(columns_to_drop)
         self.data_df = self.data_df.reset_index(drop=True)
-        self.save_data(file_name="beer_trunc")
+        self.save_data(file_name="_truncated_data")
 
 
 if __name__ == '__main__':
@@ -213,15 +214,3 @@ if __name__ == '__main__':
     beer_eda = BeerEDA(project_name="Beer",
                        data_source="beer_profile_and_ratings.csv",
                        )
-
-
-
-
-
-
-
-
-
-
-
-
