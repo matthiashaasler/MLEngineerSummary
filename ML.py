@@ -3,12 +3,16 @@ import pickle
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+from matplotlib import pyplot as plt
 from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV, StratifiedShuffleSplit
+from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
+from sklearn.svm import SVR
 
 
 class PrepareData:
@@ -16,9 +20,10 @@ class PrepareData:
         self.pipe_line = None
         self.project_name = project_name
         self.data_save_dir = data_dir
-        self.data_df = self.__read_data_to_df(data_file=data_file)
-        self.train_set, self.test_set = self.split_data_into_train_and_test(test_size=test_size)
-        self.save_train_test()
+        if data_file is None:
+            self.data_df = None
+        else:
+            self.data_df = self.__read_data_to_df(data_file=data_file)
 
 
     @property
@@ -31,53 +36,91 @@ class PrepareData:
         except FileNotFoundError:
             raise FileNotFoundError(f"File {data_file} not found in the directory {self.data_save_dir}")
 
-    def split_data_into_train_and_test(self, test_size=None, stratified=None, strat_column=None):
+    def split_data_into_train_and_test(self, test_size=None, stratified=None, strat_column=None, number_of_bins=5):
         # Split the data into train and test sets
         # Stratifizieren?
         if stratified:
+            self.data_df[strat_column+'_discrete'] = pd.cut(self.data_df[strat_column], bins=number_of_bins, labels=False)
             splitter = StratifiedShuffleSplit(
                 n_splits=10,
                 test_size=test_size
             )
-            start_train_index, strat_test_index = splitter.split(self.data_df, self.data_df[strat_column])
+            start_train_index, strat_test_index = splitter.split(self.data_df, self.data_df[strat_column+'_discrete'])
             train_set = self.data_df.loc[start_train_index]
             test_set = self.data_df.loc[strat_test_index]
+            train_set.drop(columns=[strat_column+'_discrete'], inplace=True)
+            test_set.drop(columns=[strat_column+'_discrete'], inplace=True)
         else:
             train_set, test_set = train_test_split(self.data_df, test_size=test_size)
 
         return train_set, test_set
 
-    def split_features_and_labels(self, label=None, data=None):
+    def split_data(self, test_size=None, stratified=None, strat_column=None, label=None, save=None):
+
+        train_set, test_set = self.split_data_into_train_and_test(
+            test_size=test_size,
+            stratified=stratified,
+            strat_column=strat_column
+        )
+        if save:
+            self.save_data(data_name='train_set', data=train_set)
+            self.save_data(data_name='test_set', data=test_set)
+
+        x_train, y_train = self.split_features_and_labels(label=label, data=train_set)
+        x_test, y_test = self.split_features_and_labels(label=label, data=test_set)
+        return x_train, x_test, y_train, y_test
+
+    def load_features_and_labels(self, label=None):
+        # Load the data from the pickle files
+        train_set = self.load_data('train_set')
+        test_set = self.load_data('test_set')
+
+        x_train, y_train = self.split_features_and_labels(label=label, data=train_set)
+        x_test, y_test = self.split_features_and_labels(label=label, data=test_set)
+        return x_train, x_test, y_train, y_test
+
+    @staticmethod
+    def split_features_and_labels(label=None, data=None):
         # Split the features and labels
         features = data.drop(label, axis=1)
         labels = data[label].copy()
         return features, labels
 
-
     def save_data(self, data_name=None, data=None):
-        with open(f'{self.project_name}_{data_name}.pkl', 'wb') as data_file:
+        with open(os.path.join(self.data_save_dir,f'{self.project_name}_{data_name}.pkl'), 'wb') as data_file:
             pickle.dump(data, data_file, pickle.HIGHEST_PROTOCOL)
 
-    def save_train_test(self):
-        self.save_data(data_name='train_set', data=self.train_set)
-        self.save_data(data_name='test_set', data=self.test_set)
+    def load_data(self, data_name=None):
+        with open(os.path.join(self.data_save_dir,f'{self.project_name}_{data_name}.pkl'), 'rb') as data_file:
+            data = pickle.load(data_file)
+        return data
+
+
 
 class MlPipeLine:
     
-    def __init__(self, cv_folds=5, scoring_function=None):
-        self.grid_search = None
+    def __init__(self):
         self.pipe_line = None
-        self.cv_folds = cv_folds
-        self.scoring_function = scoring_function
-        
-    @staticmethod
-    def build_preprocessor(list_of_transformers=None):
-        if list_of_transformers:
-            return ColumnTransformer(
-                transformers=list_of_transformers,
+        self.preprocessor = None
+
+    def build_pipeline(self, dict_of_steps=None,
+                       list_of_preprocessors=None):
+        # Define the pipeline
+        if list_of_preprocessors:
+            self.preprocessor = ColumnTransformer(
+                transformers=list_of_preprocessors,
             )
+            list_of_steps = [('preprocessor', self.preprocessor)]
         else:
-            return None
+            list_of_steps = []
+
+        for name, step in dict_of_steps.items():
+                list_of_steps.append((name, step))
+        try:
+            self.pipe_line = Pipeline(list_of_steps)
+        except ValueError:
+            raise ValueError(f"Pipeline could not be built with the given steps: {list_of_steps}")
+
 
     def fit_pipeline(self, features=None, labels=None):
         self.pipe_line.fit(features,labels)
@@ -97,127 +140,180 @@ class MlPipeLine:
     def get_pipeline_params(self):
         return self.pipe_line.get_params()
 
+
+
+class DoMl:
+    def __init__(self, cv_folds=5, scoring_function=None,
+                 gs_parameter=None):
+        self.output = 'full'
+        self.grid_search = None
+        self.scoring_function = scoring_function
+        self.cv_folds = cv_folds
+        self.x_test = None
+        self.x_train = None
+        self.y_test = None
+        self.y_train = None
+        self.data = None
+        self.ml_pipe = MlPipeLine()
+
+    def prepare_ml(self, x_train=None, y_train=None, x_test=None, y_test=None, dict_of_steps=None,
+                   list_of_preprocessors=None):
+
+        self.x_test = x_test
+        self.x_train = x_train
+        self.y_test = y_test
+        self.y_train = y_train
+
+        # build pipeline
+        self.ml_pipe.build_pipeline(dict_of_steps=dict_of_steps, list_of_preprocessors=list_of_preprocessors)
+
+    def do_ml(self, gs_parameter=None):
+        # Train the model
+        self.ml_pipe.fit_pipeline(labels=self.y_train, features=self.x_train)
+        # Evaluate the model
+        self.evaluate_ml()
+        if gs_parameter:
+            # Do GridSearch
+            self.do_grid_search(gs_parameter=gs_parameter)
+            # Evaluate the model
+            self.evaluate_gridsearch(full=self.output)
+
+    def test_ml(self):
+        self.ml_pipe.predict_pipeline(self.y_test)
+        self.ml_pipe.score_pipeline(labels=self.y_test, features=self.x_test)
+
+    def predict_ml(self, features=None):
+        predictions = self.ml_pipe.predict_pipeline(features)
+        print(predictions)
+        return
+
+    def evaluate_ml(self):
+        score = self.ml_pipe.score_pipeline(labels=self.y_train, features=self.x_train)
+        cross_val_score = self.cross_val_score_pipeline(labels=self.y_train, features=self.x_train)
+        print(f"Score: {score}")
+        print(f"Cross val score: {cross_val_score}, Mean: {np.mean(cross_val_score)}, Std: {np.std(cross_val_score)}")
+        return
+
+    def evaluate_gridsearch(self, full=None):
+        if self.grid_search:
+            print("Best Parameters:", self.grid_search.best_params_)
+            print("Best Score:", self.grid_search.best_score_)
+            if full:
+                print("All Results:")
+                results = pd.DataFrame(self.grid_search.cv_results_)
+                print(results)
+        else:
+            raise ValueError("Grid search has not been performed yet.")
+
     def cross_val_score_pipeline(self, features=None, labels=None):
         return cross_val_score(
-            self.pipe_line,
+            self.ml_pipe.pipe_line,
             features,
             labels,
             cv=self.cv_folds,
             scoring=self.scoring_function
         )
 
-    def build_pipeline(self,**kwargs):
-        # Define the pipeline
-        list_of_steps = []
-        for name, step in kwargs.items():
-            if step:
-                list_of_steps.append((str(name), step))
-        try:
-            self.pipe_line = Pipeline(list_of_steps)
-        except ValueError:
-            raise ValueError(f"Pipeline could not be built with the given steps: {list_of_steps}")
-
-    def do_grid_search(self, features=None, labels=None, param_grid=None):
+    def do_grid_search(self, gs_parameter=None):
         grid_search = GridSearchCV(
-            self.pipe_line,
-            param_grid,
+            self.ml_pipe.pipe_line,
+            gs_parameter,
             cv=self.cv_folds,
             scoring=self.scoring_function,
-            n_jobs=-1
+            n_jobs=-1,
+            verbose=3
         )
-
-        self.grid_search = grid_search.fit(features, labels)
+        self.grid_search = grid_search.fit(self.x_train, self.y_train)
         return
 
+    def do_tf(self):
+        tf_pipeline = Pipeline([('preprocessor',self.ml_pipe.preprocessor)])
+        print(tf_pipeline)
+        x_train =tf_pipeline.fit_transform(self.x_train)
+        y_train = self.y_train.to_numpy()
+        print(x_train.shape, y_train.shape)
 
-class DoMl:
-    def __init__(self):
-        self.labels_test = None
-        self.labels_train = None
-        self.features_test = None
-        self.features_train = None
-        self.data = None
-        self.ml = None
+        model = tf.keras.models.Sequential([
+            tf.keras.layers.Input(shape=(x_train.shape[1],)),
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(10, activation='softmax')
+        ])
 
-    def do_ml(self):
-        # Load the data
-        self.data_preparation_ml()
-        # Train the model
-        categorical_cols = self.features_train.select_dtypes(exclude=np.number).columns.tolist()
-        numerical_cols = self.features_train.select_dtypes(include=np.number).columns.tolist()
-        self.fit_ml(
-            list_of_preprocessors=[
-            ('encoder', OneHotEncoder(sparse_output=False, handle_unknown='ignore'), categorical_cols),
-            ('passthrough', 'passthrough', numerical_cols),
-            # ('transformer', FunctionTransformer(func=np.log, inverse_func=np.exp), ['ABV', 'Body', 'Alcohol'])
-            ],
-            scaler=MinMaxScaler(),
-            pca=PCA(),
-            linreg=Ridge()
-        )
-        # Evaluate the model
-        self.evaluate_ml()
-        # Predict the model
-        self.predict_ml(self.features_train)
-        # Do GridSearch
-        self.grid_search_ml(
-            param_grid = {
-                'linreg__alpha': np.arange(0.0, 5.0, 0.1),
-                'linreg__solver': ["svd", "cholesky", "lsqr"]  # Adjust Ridge solver
-                }
-        )
-        # Evaluate the model
-        self.evaluate_gridsearch(full=True)
+        model.compile(optimizer='adam',
+                      loss='sparse_categorical_crossentropy',
+                      metrics=['accuracy'])
+        print(model.summary())
+        history = model.fit(x_train, y_train, epochs=50, batch_size=32, validation_split=0.2)
+        x_test =tf_pipeline.transform(self.x_test)
+        y_test = self.y_test.to_numpy()
+        # Plotting the loss
+        plt.plot(history.history['loss'], label='Train Loss')
+        plt.title('Model Loss')
+        plt.ylabel('Loss')
+        plt.xlabel('Epoch')
+        plt.legend(loc='upper right')
+        plt.show()
 
-    def test_ml(self):
-        self.ml.predict_pipeline(self.features_test)
-        self.ml.score_pipeline(self.features_test, self.labels_test)
+        loss, mae = model.evaluate(x_test, y_test)
+        print(f"Test Loss: {loss}")
+        print(f"Test Mean Absolute Error: {mae}")
 
-    def data_preparation_ml(self):
-        self.data = PrepareData(data_file='Beer_truncated_data.pkl', data_dir='data')
-        self.features_train, self.labels_train = self.data.split_features_and_labels(label='review_overall', data=self.data.train_set)
-        self.features_test, self.labels_test = self.data.split_features_and_labels(label='review_overall', data=self.data.test_set)
-
-
-    def fit_ml(self, list_of_preprocessors=None, **kwargs):
-        self.ml = MlPipeLine(cv_folds=5, scoring_function='r2')
-        # Define the preprocessor
-        preprocessor = self.ml.build_preprocessor(list_of_preprocessors)
-        self.ml.build_pipeline(
-            preprocessor=preprocessor,
-            **kwargs
-        )
-        self.ml.fit_pipeline(self.features_train, self.labels_train)
-
-    def predict_ml(self, features=None):
-        predictions = self.ml.predict_pipeline(features)
-        print(predictions)
-        return
-
-    def evaluate_ml(self):
-        score = self.ml.score_pipeline(self.features_train, self.labels_train)
-        cross_val_score = self.ml.cross_val_score_pipeline(self.features_train, self.labels_train)
-        print(f"Score: {score}")
-        print(f"Cross val score: {cross_val_score}, Mean: {np.mean(cross_val_score)}, Std: {np.std(cross_val_score)}")
-        return
-
-    def grid_search_ml(self, param_grid=None):
-        self.ml.do_grid_search(self.features_train, self.labels_train, param_grid)
-
-    def evaluate_gridsearch(self, full=None):
-        if self.ml.do_grid_search:
-            print("Best Parameters:", self.ml.grid_search.best_params_)
-            print("Best Score:", self.ml.grid_search.best_score_)
-            if full:
-                print("All Results:")
-                results = pd.DataFrame(self.ml.grid_search.cv_results_)
-                print(results)
-        else:
-            raise ValueError("Grid search has not been performed yet.")
 
 
 if __name__ == '__main__':
 
-    do_ml = DoMl()
-    do_ml.do_ml()
-    # do_ml.test_ml()
+    data = PrepareData(data_file="Beer_truncated_data.pkl", data_dir='data', project_name='Beer')
+    x_train, x_test, y_train, y_test = data.split_data(
+        test_size=0.2,
+        stratified=False,
+        strat_column='review_overall',
+        label='review_overall',
+        save=True
+    )
+
+    categorical_cols = x_train.select_dtypes(exclude=np.number).columns.tolist()
+    numerical_cols = x_train.select_dtypes(include=np.number).columns.tolist()
+
+    do_ml = DoMl(
+        cv_folds=5,
+        scoring_function='r2'
+    )
+    do_ml.prepare_ml(x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
+                     list_of_preprocessors= [
+                         ('encoder', OneHotEncoder(sparse_output=False, handle_unknown='ignore'), categorical_cols),
+                         ('passthrough', 'passthrough', numerical_cols),
+                         # ('transformer', FunctionTransformer(func=np.log, inverse_func=np.exp), ['ABV', 'Body', 'Alcohol'])
+                         ],
+                     dict_of_steps={
+                         'scaler':MinMaxScaler(),
+                         'pca': PCA(),
+                         'clf': Ridge()
+                     }
+                     )
+    gs_parameters = param_grid = [
+    {
+        # 'scaler': ['passthrough', RobustScaler(), MinMaxScaler()],
+        # 'pca': ['passthrough', PCA()],
+        'clf': [MLPRegressor(max_iter=10000)],
+        'clf__activation': ["logistic",  "relu"],
+        # 'clf__hidden_layer_sizes': [(5, 2), (10, 5), (20, 10),
+        #                             (5, 5, 2), (10, 10, 5), (20, 20, 10)],
+        # 'clf__learning_rate': ['constant', 'adaptive'],
+        'clf__alpha': [0.0001, 0.001, 0.01],
+    },
+    {
+        'clf': [SVR()],
+        'clf__C': [1, 10, 100, 1000],
+        'clf__gamma': [0.1, 1.0, 10]
+    },
+    {
+        'clf': [Ridge()],
+        'clf__alpha': [0.001, 0.1, 1, 10],
+        'clf__solver': ['saga']
+    }
+        ]
+    # do_ml.do_ml(gs_parameter=gs_parameters)
+
+
+    do_ml.do_tf()

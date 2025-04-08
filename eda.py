@@ -185,7 +185,7 @@ class BeerEDA(EDA):
 
 
         # Display the scatter matrix for thr review columns
-        attributes = [att for att in self.df_columns if "review_" in att and att is not "review_overall"]
+        attributes = [att for att in self.df_columns if "review_" in att and att != "review_overall"]
         self.print_df_info(attributes, "The review columns are:")
         self.plot_scatter_matrix(columns=attributes)
 
@@ -201,8 +201,9 @@ class BeerEDA(EDA):
 
         self.data_df = self.data_df.dropna()
         self.data_df = self.data_df.drop_duplicates()
-        columns_to_drop = ["Name", "Beer Name (Full)", "Description", 'number_of_reviews']
-        columns_to_drop = ["Name", "Beer Name (Full)", "Description", 'number_of_reviews']
+        columns_to_drop = [att for att in self.df_columns if "review_" in att and att != "review_overall"]
+        columns_to_drop = columns_to_drop + ["Name", "Beer Name (Full)", "Description", 'number_of_reviews']
+        print(f"The columns to drop are: {columns_to_drop}")
         self.drop_columns(columns_to_drop)
         self.data_df = self.data_df.reset_index(drop=True)
         self.save_data(file_name="truncated_data")
