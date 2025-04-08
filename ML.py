@@ -11,7 +11,7 @@ from sklearn.linear_model import Ridge
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV, StratifiedShuffleSplit
 from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
+from sklearn.preprocessing import OneHotEncoder, MinMaxScaler, RobustScaler
 from sklearn.svm import SVR
 
 
@@ -101,18 +101,9 @@ class MlPipeLine:
     
     def __init__(self):
         self.pipe_line = None
-        self.preprocessor = None
 
-    def build_pipeline(self, dict_of_steps=None,
-                       list_of_preprocessors=None):
-        # Define the pipeline
-        if list_of_preprocessors:
-            self.preprocessor = ColumnTransformer(
-                transformers=list_of_preprocessors,
-            )
-            list_of_steps = [('preprocessor', self.preprocessor)]
-        else:
-            list_of_steps = []
+    def build_sk_learn_pipeline(self, dict_of_steps=None):
+        list_of_steps = []
 
         for name, step in dict_of_steps.items():
                 list_of_steps.append((name, step))
@@ -156,18 +147,36 @@ class DoMl:
         self.data = None
         self.ml_pipe = MlPipeLine()
 
-    def prepare_ml(self, x_train=None, y_train=None, x_test=None, y_test=None, dict_of_steps=None,
-                   list_of_preprocessors=None):
+    def do_preprocessing(self, list_of_preprocessors=None):
+        # Define the pipeline
+
+        preprocessor = ColumnTransformer(
+            transformers=list_of_preprocessors,
+        )
+        preprocessor_pipeline = Pipeline([
+            ('preprocessor', preprocessor)
+        ])
+        self.x_train = pd.DataFrame(preprocessor_pipeline.fit_transform(self.x_train),
+                                    columns=preprocessor_pipeline.named_steps['preprocessor'].get_feature_names_out())
+        self.x_test = pd.DataFrame(preprocessor_pipeline.transform(self.x_test),
+                                   columns=preprocessor_pipeline.named_steps['preprocessor'].get_feature_names_out())
+
+    def prepare_ml(self, x_train=None, y_train=None, x_test=None, y_test=None, list_of_preprocessors=None):
 
         self.x_test = x_test
         self.x_train = x_train
         self.y_test = y_test
         self.y_train = y_train
 
-        # build pipeline
-        self.ml_pipe.build_pipeline(dict_of_steps=dict_of_steps, list_of_preprocessors=list_of_preprocessors)
+        #
+        if list_of_preprocessors:
+            # do preprocessing
+            self.do_preprocessing(list_of_preprocessors=list_of_preprocessors)
 
-    def do_ml(self, gs_parameter=None):
+
+    def do_ml(self, gs_parameter=None, dict_of_steps=None):
+        # build pipeline
+        self.ml_pipe.build_sk_learn_pipeline(dict_of_steps=dict_of_steps)
         # Train the model
         self.ml_pipe.fit_pipeline(labels=self.y_train, features=self.x_train)
         # Evaluate the model
@@ -227,14 +236,14 @@ class DoMl:
         return
 
     def do_tf(self):
-        tf_pipeline = Pipeline([('preprocessor',self.ml_pipe.preprocessor)])
-        print(tf_pipeline)
-        x_train =tf_pipeline.fit_transform(self.x_train)
+
         y_train = self.y_train.to_numpy()
-        print(x_train.shape, y_train.shape)
+        x_train = self.x_train.to_numpy()
+
 
         model = tf.keras.models.Sequential([
             tf.keras.layers.Input(shape=(x_train.shape[1],)),
+            tf.keras.layers.Dense(128, activation='relu'),
             tf.keras.layers.Dense(128, activation='relu'),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(10, activation='softmax')
@@ -244,8 +253,9 @@ class DoMl:
                       loss='sparse_categorical_crossentropy',
                       metrics=['accuracy'])
         print(model.summary())
-        history = model.fit(x_train, y_train, epochs=50, batch_size=32, validation_split=0.2)
-        x_test =tf_pipeline.transform(self.x_test)
+
+        history = model.fit(x_train, y_train, epochs=100, batch_size=32, validation_split=0.2)
+        x_test = self.x_test.to_numpy()
         y_test = self.y_test.to_numpy()
         # Plotting the loss
         plt.plot(history.history['loss'], label='Train Loss')
@@ -282,16 +292,12 @@ if __name__ == '__main__':
     do_ml.prepare_ml(x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
                      list_of_preprocessors= [
                          ('encoder', OneHotEncoder(sparse_output=False, handle_unknown='ignore'), categorical_cols),
-                         ('passthrough', 'passthrough', numerical_cols),
+                         ('scaler', RobustScaler(), numerical_cols),
                          # ('transformer', FunctionTransformer(func=np.log, inverse_func=np.exp), ['ABV', 'Body', 'Alcohol'])
                          ],
-                     dict_of_steps={
-                         'scaler':MinMaxScaler(),
-                         'pca': PCA(),
-                         'clf': Ridge()
-                     }
+
                      )
-    gs_parameters = param_grid = [
+    gs_parameters  = [
     {
         # 'scaler': ['passthrough', RobustScaler(), MinMaxScaler()],
         # 'pca': ['passthrough', PCA()],
@@ -313,7 +319,13 @@ if __name__ == '__main__':
         'clf__solver': ['saga']
     }
         ]
-    # do_ml.do_ml(gs_parameter=gs_parameters)
 
-
+    do_ml.do_ml(
+        dict_of_steps={
+        # 'scaler':MinMaxScaler(),
+        'pca': PCA(),
+        'clf': Ridge()
+        },
+        # gs_parameter=gs_parameters
+    )
     do_ml.do_tf()
