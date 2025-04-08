@@ -205,12 +205,13 @@ class BeerEDA(EDA):
         columns_to_drop = ["Name", "Beer Name (Full)", "Description", 'number_of_reviews']
         self.drop_columns(columns_to_drop)
         self.data_df = self.data_df.reset_index(drop=True)
-        self.save_data(file_name="_truncated_data")
+        self.save_data(file_name="truncated_data")
 
 
 if __name__ == '__main__':
 
     # Create an instance of the BeerEDA class
+
     beer_eda = BeerEDA(project_name="Beer",
                        data_source="beer_profile_and_ratings.csv",
                        )
