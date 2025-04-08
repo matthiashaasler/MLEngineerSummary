@@ -186,10 +186,10 @@ class DoMl:
             self.do_grid_search(gs_parameter=gs_parameter)
             # Evaluate the model
             self.evaluate_gridsearch(full=self.output)
+        self.test_ml()
 
     def test_ml(self):
-        self.ml_pipe.predict_pipeline(self.y_test)
-        self.ml_pipe.score_pipeline(labels=self.y_test, features=self.x_test)
+        print(f"Test Score: {self.ml_pipe.score_pipeline(labels=self.y_test, features=self.x_test)}")
 
     def predict_ml(self, features=None):
         predictions = self.ml_pipe.predict_pipeline(features)
@@ -199,7 +199,7 @@ class DoMl:
     def evaluate_ml(self):
         score = self.ml_pipe.score_pipeline(labels=self.y_train, features=self.x_train)
         cross_val_score = self.cross_val_score_pipeline(labels=self.y_train, features=self.x_train)
-        print(f"Score: {score}")
+        print(f"Train Score: {score}")
         print(f"Cross val score: {cross_val_score}, Mean: {np.mean(cross_val_score)}, Std: {np.std(cross_val_score)}")
         return
 
