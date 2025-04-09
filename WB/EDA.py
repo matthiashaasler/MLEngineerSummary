@@ -176,7 +176,7 @@ class EDA(HandleData, PlotData):
 
 class BeerEDA(EDA):
     def __init__(self, project_name=None, data_source=None):
-        EDA.__init__(self, data_dir="data", project_name=project_name, data_source=data_source, figure_dir="images")
+        EDA.__init__(self, data_dir="../data", project_name=project_name, data_source=data_source, figure_dir="../images")
 
         self.print_all_infos()
 

@@ -272,7 +272,7 @@ class DoMl:
 
 if __name__ == '__main__':
 
-    data = PrepareData(data_file="Beer_truncated_data.pkl", data_dir='data', project_name='Beer')
+    data = PrepareData(data_file="Beer_truncated_data.pkl", data_dir='../data', project_name='Beer')
     x_train, x_test, y_train, y_test = data.split_data(
         test_size=0.3,
         stratified=True,
