@@ -45,9 +45,11 @@ class PrepareData:
                 n_splits=10,
                 test_size=test_size
             )
-            start_train_index, strat_test_index = splitter.split(self.data_df, self.data_df[strat_column+'_discrete'])
-            train_set = self.data_df.loc[start_train_index]
-            test_set = self.data_df.loc[strat_test_index]
+            for strat_train_index, strat_test_index in splitter.split(self.data_df, self.data_df[strat_column+'_discrete']):
+
+                train_set = self.data_df.loc[strat_train_index]
+                test_set = self.data_df.loc[strat_test_index]
+
             train_set.drop(columns=[strat_column+'_discrete'], inplace=True)
             test_set.drop(columns=[strat_column+'_discrete'], inplace=True)
         else:
@@ -245,8 +247,9 @@ class DoMl:
             tf.keras.layers.Input(shape=(x_train.shape[1],)),
             tf.keras.layers.Dense(128, activation='relu'),
             tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(10, activation='softmax')
+            tf.keras.layers.Dense(20, activation='softmax')
         ])
 
         model.compile(optimizer='adam',
@@ -275,8 +278,8 @@ if __name__ == '__main__':
 
     data = PrepareData(data_file="Beer_truncated_data.pkl", data_dir='data', project_name='Beer')
     x_train, x_test, y_train, y_test = data.split_data(
-        test_size=0.2,
-        stratified=False,
+        test_size=0.3,
+        stratified=True,
         strat_column='review_overall',
         label='review_overall',
         save=True
@@ -287,33 +290,36 @@ if __name__ == '__main__':
 
     do_ml = DoMl(
         cv_folds=5,
-        scoring_function='r2'
+        scoring_function='neg_mean_absolute_error',
     )
     do_ml.prepare_ml(x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
                      list_of_preprocessors= [
                          ('encoder', OneHotEncoder(sparse_output=False, handle_unknown='ignore'), categorical_cols),
-                         ('scaler', RobustScaler(), numerical_cols),
+                         ('passthrough', 'passthrough', numerical_cols),
+                         # ('scaler', RobustScaler(), numerical_cols),
                          # ('transformer', FunctionTransformer(func=np.log, inverse_func=np.exp), ['ABV', 'Body', 'Alcohol'])
                          ],
 
                      )
     gs_parameters  = [
+    # {
+    #     'scaler': ['passthrough', RobustScaler(), MinMaxScaler()],
+    #     'pca': ['passthrough', PCA()],
+    #     'clf': [MLPRegressor(max_iter=10000)],
+    #     'clf__activation': ["logistic",  "relu"],
+    #     # 'clf__hidden_layer_sizes': [(5, 2), (10, 5), (20, 10),
+    #     #                             (5, 5, 2), (10, 10, 5), (20, 20, 10)],
+    #     # 'clf__learning_rate': ['constant', 'adaptive'],
+    #     'clf__alpha': [0.0001, 0.001, 0.01],
+    # },
     {
-        # 'scaler': ['passthrough', RobustScaler(), MinMaxScaler()],
-        # 'pca': ['passthrough', PCA()],
-        'clf': [MLPRegressor(max_iter=10000)],
-        'clf__activation': ["logistic",  "relu"],
-        # 'clf__hidden_layer_sizes': [(5, 2), (10, 5), (20, 10),
-        #                             (5, 5, 2), (10, 10, 5), (20, 20, 10)],
-        # 'clf__learning_rate': ['constant', 'adaptive'],
-        'clf__alpha': [0.0001, 0.001, 0.01],
-    },
-    {
+        'scaler': ['passthrough', RobustScaler(), MinMaxScaler()],
         'clf': [SVR()],
         'clf__C': [1, 10, 100, 1000],
         'clf__gamma': [0.1, 1.0, 10]
     },
     {
+        'scaler': ['passthrough', RobustScaler(), MinMaxScaler()],
         'clf': [Ridge()],
         'clf__alpha': [0.001, 0.1, 1, 10],
         'clf__solver': ['saga']
@@ -322,10 +328,10 @@ if __name__ == '__main__':
 
     do_ml.do_ml(
         dict_of_steps={
-        # 'scaler':MinMaxScaler(),
+        'scaler':MinMaxScaler(),
         'pca': PCA(),
         'clf': Ridge()
         },
-        # gs_parameter=gs_parameters
+        gs_parameter=gs_parameters
     )
     do_ml.do_tf()
