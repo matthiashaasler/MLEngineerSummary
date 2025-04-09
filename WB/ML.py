@@ -232,7 +232,7 @@ class DoMl:
         self.grid_search = grid_search.fit(self.x_train, self.y_train)
         return
 
-    def do_tf(self, list_of_layers=None):
+    def do_tf(self, list_of_layers=None, number_of_epochs=300):
 
         y_train = self.y_train.to_numpy()
         x_train = self.x_train.to_numpy()
@@ -248,7 +248,7 @@ class DoMl:
                       metrics=['accuracy'])
         print(model.summary())
 
-        history = model.fit(x_train, y_train, epochs=100, batch_size=32, validation_split=0.2)
+        history = model.fit(x_train, y_train, epochs=number_of_epochs, batch_size=32, validation_split=0.2)
         x_test = self.x_test.to_numpy()
         y_test = self.y_test.to_numpy()
         # Plotting the loss

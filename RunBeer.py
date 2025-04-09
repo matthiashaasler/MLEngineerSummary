@@ -8,6 +8,9 @@ from sklearn.svm import SVR
 from WB.EDA import EDA
 from WB.ML import PrepareData, DoMl
 
+import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 # Define EDA class for Beer data
 class BeerEDA(EDA):
     def __init__(self, project_name=None, data_source=None):
@@ -49,10 +52,10 @@ if __name__ == '__main__':
     # EDA of the data
     # saves a data file with the name Beer_truncated_data.pkl
 
-    beer_eda = BeerEDA(project_name="Beer",)
+    # beer_eda = BeerEDA(project_name="Beer",)
 
     # Loading of the data file
-    data = PrepareData(data_file="Beer_truncated_data.pkl", data_dir='../data', project_name='Beer')
+    data = PrepareData(data_file="Beer_truncated_data.pkl", data_dir='data', project_name='Beer')
     # Define label column and stratified column. Return of train and test set as features and label
     x_train, x_test, y_train, y_test = data.split_data(
         test_size=0.3,
@@ -106,20 +109,19 @@ if __name__ == '__main__':
         }
     ]
 
-    do_ml.do_ml(
-        dict_of_steps={
-            'scaler':MinMaxScaler(),
-            'pca': PCA(),
-            'clf': Ridge()
-        },
-        gs_parameter=gs_parameters
-    )
+    # do_ml.do_ml(
+    #     dict_of_steps={
+    #         'scaler':MinMaxScaler(),
+    #         'pca': PCA(),
+    #         'clf': Ridge()
+    #     },
+    #     gs_parameter=gs_parameters
+    # )
     do_ml.do_tf(
         list_of_layers=[
-            tf.keras.layers.Input(shape=(x_train.shape[1],)),
-            tf.keras.layers.Dense(128, activation='relu'),
-            tf.keras.layers.Dense(128, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dense(64, activation='relu'),
             tf.keras.layers.Dropout(0.2),
             tf.keras.layers.Dense(20, activation='softmax')
         ]
