@@ -237,20 +237,16 @@ class DoMl:
         self.grid_search = grid_search.fit(self.x_train, self.y_train)
         return
 
-    def do_tf(self):
+    def do_tf(self, list_of_layers=None):
 
         y_train = self.y_train.to_numpy()
         x_train = self.x_train.to_numpy()
 
+        input_model = tf.keras.Input(shape=(x_train.shape[1],))
+        model_list = [input_model] + list_of_layers
 
-        model = tf.keras.models.Sequential([
-            tf.keras.layers.Input(shape=(x_train.shape[1],)),
-            tf.keras.layers.Dense(128, activation='relu'),
-            tf.keras.layers.Dense(128, activation='relu'),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(20, activation='softmax')
-        ])
+
+        model = tf.keras.models.Sequential(model_list)
 
         model.compile(optimizer='adam',
                       loss='sparse_categorical_crossentropy',
@@ -334,4 +330,13 @@ if __name__ == '__main__':
         },
         gs_parameter=gs_parameters
     )
-    do_ml.do_tf()
+    do_ml.do_tf(
+        list_of_layers=[
+            tf.keras.layers.Input(shape=(x_train.shape[1],)),
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dropout(0.2),
+            tf.keras.layers.Dense(20, activation='softmax')
+        ]
+    )
