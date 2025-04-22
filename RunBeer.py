@@ -1,14 +1,18 @@
 import numpy as np
 import tensorflow as tf
+# from tf.keras.layers import Dense, Dtopout
 from sklearn.decomposition import PCA
 from sklearn.linear_model import Ridge
-from sklearn.preprocessing import OneHotEncoder, RobustScaler, MinMaxScaler
+from sklearn.preprocessing import OneHotEncoder, RobustScaler, MinMaxScaler, StandardScaler
 from sklearn.svm import SVR
 
 from WB.EDA import EDA
 from WB.ML import PrepareData, DoMl
 
 import os
+
+from WB.NN import construct_dataset, NN
+
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 # Define EDA class for Beer data
@@ -58,8 +62,8 @@ if __name__ == '__main__':
     data = PrepareData(data_file="Beer_truncated_data.pkl", data_dir='data', project_name='Beer')
     # Define label column and stratified column. Return of train and test set as features and label
     x_train, x_test, y_train, y_test = data.split_data(
-        test_size=0.3,
-        stratified=True,
+        test_size=0.2,
+        stratified=False,
         strat_column='review_overall',
         label='review_overall',
         save=True
@@ -73,13 +77,13 @@ if __name__ == '__main__':
     # Start ML
     do_ml = DoMl(
         cv_folds=5,
-        scoring_function='neg_mean_absolute_error',
+        scoring_function='r2',
     )
     do_ml.prepare_ml(x_train=x_train, y_train=y_train, x_test=x_test, y_test=y_test,
                      list_of_preprocessors= [
                          ('encoder', OneHotEncoder(sparse_output=False, handle_unknown='ignore'), categorical_cols),
-                         ('passthrough', 'passthrough', numerical_cols),
-                         # ('scaler', RobustScaler(), numerical_cols),
+                         # ('passthrough', 'passthrough', numerical_cols),
+                         ('scaler', StandardScaler(), numerical_cols),
                          # ('transformer', FunctionTransformer(func=np.log, inverse_func=np.exp), ['ABV', 'Body', 'Alcohol'])
                      ],
 
@@ -109,20 +113,49 @@ if __name__ == '__main__':
         }
     ]
 
-    # do_ml.do_ml(
-    #     dict_of_steps={
-    #         'scaler':MinMaxScaler(),
-    #         'pca': PCA(),
-    #         'clf': Ridge()
-    #     },
-    #     gs_parameter=gs_parameters
-    # )
-    do_ml.do_tf(
-        list_of_layers=[
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dropout(0.2),
-            tf.keras.layers.Dense(20, activation='softmax')
-        ]
+    do_ml.do_ml(
+        dict_of_steps={
+            'scaler':MinMaxScaler(),
+            'pca': PCA(),
+            'clf': Ridge()
+        },
+        # gs_parameter=gs_parameters
+    )
+l2_wert = 0.0001
+
+def get_model(size):
+    model = tf.keras.Sequential([])
+    model.add(tf.keras.Input(shape=(size,)))
+    model.add(tf.keras.layers.Dense(400, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_wert)))
+    model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.Dense(600, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_wert)))
+    model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.Dense(800, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_wert)))
+    model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.Dense(800, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_wert)))
+    model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.Dense(800, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_wert)))
+    model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.Dense(800, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_wert)))
+    model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.Dense(800, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_wert)))
+    model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.Dense(800, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(l2_wert)))
+    model.add(tf.keras.layers.Dropout(0.2))
+    model.add(tf.keras.layers.Dense(1))
+    return model
+
+lr_reducer = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_r2_score', factor=0.5, patience=25, cooldown=25,
+                                                  min_lr=0.00001)
+early_stopper = tf.keras.callbacks.EarlyStopping(monitor='val_r2_score', patience=50, restore_best_weights=True)
+
+do_ml.do_tf(
+    model_function=get_model,
+    epochs=1500,
+    save_modul=True,
+    batch_size=32,
+    loss="mse",
+    optimizer="adam",
+    metrics=["r2_score", "mae"],
+    callbacks=[lr_reducer, early_stopper]
     )

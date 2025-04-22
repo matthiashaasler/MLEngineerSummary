@@ -6,8 +6,12 @@ import pandas as pd
 import tensorflow as tf
 from matplotlib import pyplot as plt
 from sklearn.compose import ColumnTransformer
+from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV, StratifiedShuffleSplit
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
+
+from WB.NN import NN, split_data, construct_dataset
 
 
 class PrepareData:
@@ -132,8 +136,9 @@ class MlPipeLine:
 
 class DoMl:
     def __init__(self, cv_folds=5, scoring_function=None,
-                 gs_parameter=None):
+                 gs_parameter=None, project_name='ML'):
         self.output = 'full'
+        self.project_name = project_name
         self.grid_search = None
         self.scoring_function = scoring_function
         self.cv_folds = cv_folds
@@ -144,21 +149,28 @@ class DoMl:
         self.data = None
         self.ml_pipe = MlPipeLine()
 
-    def do_preprocessing(self, list_of_preprocessors=None):
+    def do_preprocessing(self, list_of_preprocessors=None, pca=False):
         # Define the pipeline
 
         preprocessor = ColumnTransformer(
             transformers=list_of_preprocessors,
         )
-        preprocessor_pipeline = Pipeline([
+        if pca:
+            list = [
+                ('preprocessor', preprocessor),
+                ("PCA", PCA())
+                ]
+        else:
+            list = [
             ('preprocessor', preprocessor)
-        ])
+        ]
+        preprocessor_pipeline = Pipeline(list)
         self.x_train = pd.DataFrame(preprocessor_pipeline.fit_transform(self.x_train),
                                     columns=preprocessor_pipeline.named_steps['preprocessor'].get_feature_names_out())
         self.x_test = pd.DataFrame(preprocessor_pipeline.transform(self.x_test),
                                    columns=preprocessor_pipeline.named_steps['preprocessor'].get_feature_names_out())
 
-    def prepare_ml(self, x_train=None, y_train=None, x_test=None, y_test=None, list_of_preprocessors=None):
+    def prepare_ml(self, x_train=None, y_train=None, x_test=None, y_test=None, list_of_preprocessors=None, do_pca=None):
 
         self.x_test = x_test
         self.x_train = x_train
@@ -168,7 +180,7 @@ class DoMl:
         #
         if list_of_preprocessors:
             # do preprocessing
-            self.do_preprocessing(list_of_preprocessors=list_of_preprocessors)
+            self.do_preprocessing(list_of_preprocessors=list_of_preprocessors, pca=do_pca)
 
 
     def do_ml(self, gs_parameter=None, dict_of_steps=None):
@@ -232,33 +244,33 @@ class DoMl:
         self.grid_search = grid_search.fit(self.x_train, self.y_train)
         return
 
-    def do_tf(self, list_of_layers=None, number_of_epochs=300):
+    def do_tf(self, target_categories=None, model_function=None, **kwargs):
 
         y_train = self.y_train.to_numpy()
         x_train = self.x_train.to_numpy()
 
-        input_model = tf.keras.Input(shape=(x_train.shape[1],))
-        model_list = [input_model] + list_of_layers
+        dataset_test = construct_dataset(self.x_test.to_numpy(), self.y_test.to_numpy())
 
+        x_train, x_val, y_train, y_val = split_data(x_train, y_train, test_size=0.2, categorical_size=target_categories)
 
-        model = tf.keras.models.Sequential(model_list)
+        dataset = construct_dataset(x_train, y_train)
+        dataset_val = construct_dataset(x_val, y_val)
 
-        model.compile(optimizer='adam',
-                      loss='sparse_categorical_crossentropy',
-                      metrics=['accuracy'])
-        print(model.summary())
+        nn = NN(
+            model_name= self.project_name + "_NN",
+        )
 
-        history = model.fit(x_train, y_train, epochs=number_of_epochs, batch_size=32, validation_split=0.2)
-        x_test = self.x_test.to_numpy()
-        y_test = self.y_test.to_numpy()
-        # Plotting the loss
-        plt.plot(history.history['loss'], label='Train Loss')
-        plt.title('Model Loss')
-        plt.ylabel('Loss')
-        plt.xlabel('Epoch')
-        plt.legend(loc='upper right')
-        plt.show()
+        model = model_function(x_train.shape[1])
 
-        loss, mae = model.evaluate(x_test, y_test)
-        print(f"Test Loss: {loss}")
-        print(f"Test Mean Absolute Error: {mae}")
+        nn.do_run(
+            model=model,
+            fit_data={"x": dataset},
+            eval_data={"x": dataset_test},
+            pred_data={"x": dataset_test},
+            save_file='test',
+            do_fit=True,
+            do_evaluate=True,
+            do_predict=True,
+            validation_data=dataset_val,
+           **kwargs
+        )

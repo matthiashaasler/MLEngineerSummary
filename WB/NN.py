@@ -3,13 +3,12 @@ import inspect
 import math
 import os
 
+import numpy as np
+import tensorflow as tf
+import seaborn as sns
 from matplotlib import pyplot as plt
-from matplotlib.style.core import available
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
-import tensorflow as tf
-
-
 
 
 def split_data(x, y, test_size, categorical_size=None):
@@ -27,6 +26,26 @@ def construct_dataset(x=None, y=None, shuffel=True, buffer_size=512, batch_size=
     dataset = dataset.batch(batch_size=batch_size, drop_remainder=True)
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
     return dataset
+
+def extract_y(y_input):
+    if isinstance(y_input["x"], tf.data.Dataset):
+        y_list = []
+        for batch in y_input['x']:
+            # batch could be (x, y) or just y
+            if isinstance(batch, tuple):
+                y = batch[1]
+            else:
+                y = batch
+            y_list.append(y.numpy())
+        return np.concatenate(y_list, axis=0)
+        # If input is a TensorFlow tensor
+    elif hasattr(y_input, 'numpy'):
+        return y_input.numpy()
+        # If input is already a NumPy array
+    else:
+        return y_input
+
+
 
 
 
@@ -154,7 +173,22 @@ class NN:
             self.call_model_method(self.model, "evaluate", **eval_data, **kwargs)
 
         if kwargs.get("do_predict", False):
-            self.call_model_method(model, "predict", **pred_data, **kwargs)
+            y_predict = self.call_model_method(model, "predict", **pred_data, **kwargs)
+            y_test_np = extract_y(pred_data)
+            y_predict_np = y_predict.reshape(-1)
+            sns.scatterplot(x=y_test_np, y=y_predict_np, alpha=0.6)
+            plt.plot([y_test_np.min(), y_test_np.max()], [y_test_np.min(), y_test_np.max()], 'r--')
+            plt.xlabel('Actual Values')
+            plt.ylabel('Predicted Values')
+            plt.title('Actual vs. Predicted')
+            plt.show()
+            residuals = y_test_np - y_predict_np
+            plt.scatter(y_predict_np, residuals)
+            plt.axhline(0, color='red', linestyle='--')
+            plt.xlabel('Predicted Values')
+            plt.ylabel('Residuals')
+            plt.title('Residuals vs Predicted')
+            plt.show()
         return
 
 
