@@ -156,7 +156,6 @@ class NN:
         self.set_model(model_file=model_file, load_dir=load_dir, model=model)
 
         print(f"Status of the Model: {self.model.compiled}")
-
         if not self.model.compiled:
             self.call_model_method(self.model, "compile", **kwargs)
         else:

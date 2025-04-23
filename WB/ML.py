@@ -260,6 +260,7 @@ class DoMl:
             model_name= self.project_name + "_NN",
         )
 
+        print(x_train.shape, y_train.shape, x_val.shape, y_val.shape)
         model = model_function(x_train.shape[1])
 
         nn.do_run(

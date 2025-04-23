@@ -8,7 +8,8 @@ import plotly.express as px
 
 class HandleData:
 
-    def __init__(self, data_dir="", project_name=None, data_file=None):
+    def __init__(self, data_dir="", project_name=None, data_file=None, delimiter=";"):
+        self.delimiter = delimiter
         self.project_name = project_name
         self. data_save_dir = data_dir
         self.data_df = self.__read_data_to_df(data_file=data_file)
@@ -25,7 +26,7 @@ class HandleData:
 
     def __read_data_to_df(self, data_file=''):
         try:
-            return pd.read_csv(os.path.join(self.data_save_dir, data_file))
+            return pd.read_csv(os.path.join(self.data_save_dir, data_file), delimiter=self.delimiter)
         except FileNotFoundError:
             raise FileNotFoundError(f"File {data_file} not found in the directory {self.data_save_dir}")
 
